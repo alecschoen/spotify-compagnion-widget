@@ -18,12 +18,13 @@ class SpotifyWidget(QMainWindow):
         else: 
             self.music_paused = True
         self.dark_mode_enabled = False
+        self.music_shuffled = False
         self.init_ui()
         self.offset = None  # For tracking window movement
 
     def init_ui(self):
-        self.setWindowTitle("Transparent Overlay")
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+        self.setWindowTitle("Spotify Widget")
+        self.setWindowFlags(Qt.FramelessWindowHint) #| Qt.WindowStaysOnTopHint
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setGeometry(
             int(100),
@@ -34,8 +35,8 @@ class SpotifyWidget(QMainWindow):
 
         # Set transparent background
         self.setStyleSheet("background-color: rgba(0, 0, 0, 75);")
-
-        # Draggable instruction label
+ 
+        # background plane label
         self.background_plane = QLabel("", self)
         self.background_plane.setStyleSheet(
             """
@@ -115,13 +116,13 @@ class SpotifyWidget(QMainWindow):
         self.artist_label = QLabel(artist_name, self)
         self.artist_label.setStyleSheet(stylesheet_track_info)
         self.artist_label.setFont(gotham_light)
-        self.artist_label.setGeometry(375, 250, 350, 50)
+        self.artist_label.setGeometry(375, 250, 450, 50)
 
         # Song name label
         self.track_label = QLabel(track_name, self)
         self.track_label.setStyleSheet(stylesheet_track_info)
         self.track_label.setFont(gotham_bold)
-        self.track_label.setGeometry(375, 75, 400, 150)
+        self.track_label.setGeometry(375, 50, 400, 150)
         self.track_label.setWordWrap(True)
 
         self.album_art_label = QLabel(self)
@@ -145,7 +146,7 @@ class SpotifyWidget(QMainWindow):
         # Update the play_button_path based on the current state
         self.play_button_path = "./assets/svg/media-play.svg" if self.music_paused else "./assets/svg/media-pause.svg"
         self.media_play_button = QPushButton("", self)
-        self.media_play_button.setGeometry(375, 400, 50, 50)
+        self.media_play_button.setGeometry(400, 415, 50, 50)
         self.media_play_button.setStyleSheet(media_button_stylesheet)
         self.set_svg_icon(self.media_play_button, self.play_button_path, 0.5)  # Initial icon (black)
         self.media_play_button.clicked.connect(self.toggle_music)
@@ -153,17 +154,24 @@ class SpotifyWidget(QMainWindow):
 
         # Next Track Button
         self.next_button = QPushButton("", self)
-        self.next_button.setGeometry(525, 400, 50, 50)
+        self.next_button.setGeometry(550, 415, 50, 50)
         self.next_button.setStyleSheet(media_button_stylesheet)
         self.set_svg_icon(self.next_button, "./assets/svg/media-step-forward.svg", 0.5)  # Initial icon (black)
         self.next_button.clicked.connect(self.next_track)
 
         # Previous Track Button
         self.previous_button = QPushButton("", self)
-        self.previous_button.setGeometry(225, 400, 50, 50)
+        self.previous_button.setGeometry(250, 415, 50, 50)
         self.previous_button.setStyleSheet(media_button_stylesheet)
         self.set_svg_icon(self.previous_button, "./assets/svg/media-step-backward.svg", 0.5)  # Initial icon (black)
         self.previous_button.clicked.connect(self.previous_track)
+
+        # Shuffle Track Button
+        self.shuffle_button = QPushButton("", self)
+        self.shuffle_button.setGeometry(100, 415, 50, 50)
+        self.shuffle_button.setStyleSheet(media_button_stylesheet)
+        self.set_svg_icon(self.shuffle_button, "./assets/svg/random.svg", 0.5)  # Initial icon (black)
+        self.shuffle_button.clicked.connect(self.toggle_shuffle_tracks)
 
         # Progress slider
         self.progress_slider = QSlider(Qt.Horizontal, self)
@@ -263,6 +271,22 @@ class SpotifyWidget(QMainWindow):
     
         except Exception as e:
             print(f"Error going back: {e}")
+
+    def toggle_shuffle_tracks(self):
+        """
+        Turn on or off shuffle on playlist
+        """
+        try:
+            sp.shuffle(not self.music_shuffled)
+            self.music_shuffled = not self.music_shuffled
+            if self.music_shuffled:
+                print("Tracks shuffled.")
+            else:
+                print("Tracks unshuffled.")
+
+        except Exception as e:
+            print(f"Shuffleing tracks: {e}")
+
         
     def set_svg_icon(self, button, svg_path, size=1):
         """
@@ -344,6 +368,7 @@ class SpotifyWidget(QMainWindow):
         self.set_svg_icon(self.media_play_button, self.play_button_path, 0.5)
         self.set_svg_icon(self.next_button, "./assets/svg/media-step-forward.svg", 0.5)
         self.set_svg_icon(self.previous_button, "./assets/svg/media-step-backward.svg", 0.5)
+        self.set_svg_icon(self.shuffle_button, "./assets/svg/random.svg", 0.5)
 
 
         # Update Stylesheets
@@ -376,7 +401,7 @@ class SpotifyWidget(QMainWindow):
         print(f"Dark mode enabled: {self.dark_mode_enabled}")
 
     def update_track_info(self, current_track_info=None):
-        
+        print("Updating track info.")
         current_track_info = self.get_current_track_info()
 
         if current_track_info:
@@ -426,6 +451,7 @@ class SpotifyWidget(QMainWindow):
                 if current_playback['is_playing']:
                     #print("Playback playing.")
                     self.set_as_playing()
+                    if self.artist_label.text() == "Artist": self.update_track_info()
                 else:
                     #print("Playback paused.")
                     self.set_as_paused()
@@ -434,12 +460,6 @@ class SpotifyWidget(QMainWindow):
                     print(f"Updating track info, progress: {progress_ms}")
                     self.update_track_info()
 
-                # Check if the track has naturally ended
-                if progress_ms >= duration_ms - 2000:  # Allow for slight timing discrepancies
-                    print("Track has naturally ended.")
-                    # Reset progress bar
-                    self.progress_slider.setValue(0)
-                    return
 
                 # Calculate progress percentage
                 progress_percent = int((progress_ms / duration_ms) * 100)
@@ -479,7 +499,7 @@ class SpotifyWidget(QMainWindow):
 
     def update_album_art(self, album_image_url):
         """
-        Update the album artwork displayed in the overlay.
+        Update the album art displayed in the overlay.
         """
         try:
             response = requests.get(album_image_url)
@@ -487,13 +507,11 @@ class SpotifyWidget(QMainWindow):
 
             pixmap = QPixmap()
             pixmap.loadFromData(image_data.getvalue())
+            self.album_art_pixmap = pixmap  # Save the pixmap for reuse
             self.album_art_label.setPixmap(pixmap)
             self.album_art_label.setScaledContents(True)
-
         except Exception as e:
             print(f"Error updating album art: {e}")
-
-
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
